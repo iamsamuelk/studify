@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Studify</title>
+    <link rel="icon" type="image/svg+xml" href="favicon.svg"/>
+    <link rel="stylesheet" href="style.css"/>
+    <script>
+        window.MathJax = {
+            tex: { inlineMath: [['$','$']], displayMath: [['$$','$$']] },
+            startup: { typeset: false }
+        };
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
+</head>
+<body>
+
+<!-- ── App Shell ── -->
+<div class="app-shell">
+
+    <!-- ── Sidebar ── -->
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <div class="logo">
+                <span class="logo-icon">∫</span>
+                <span class="logo-text">Studi<strong>fy</strong></span>
+            </div>
+            <button class="icon-btn" onclick="toggleSidebar()" title="Close sidebar">
+                ✕
+            </button>
+        </div>
+
+        <div class="sidebar-stats">
+            <div class="stat-chip">
+                <span id="stat-total">0</span> queries
+            </div>
+            <div class="stat-chip accent">
+                <span id="stat-success">0</span>% success
+            </div>
+        </div>
+
+        <div class="sidebar-section-label">Recent Queries</div>
+        <div class="history-list" id="history-list">
+            <div class="history-empty">No queries yet</div>
+        </div>
+    </aside>
+
+    <!-- ── Main ── -->
+    <div class="main" id="main">
+
+        <!-- ── Topbar ── -->
+        <header class="topbar">
+            <button class="icon-btn sidebar-toggle" onclick="toggleSidebar()" title="Toggle sidebar">
+                ☰
+            </button>
+            <span class="topbar-title">Your AI-powered engineering mathematics tutor</span>
+            <div class="topbar-actions">
+                <button class="theme-btn" onclick="toggleTheme()" id="theme-btn" title="Toggle theme">
+                    <span id="theme-icon">🌙</span>
+                </button>
+            </div>
+        </header>
+
+        <!-- ── Result / Welcome area ── -->
+        <div class="results-area" id="results-area">
+
+            <!-- Welcome state -->
+            <div class="welcome" id="welcome">
+                <div class="welcome-icon">∫</div>
+                <h1>Studify</h1>
+                <p>A neurosymbolic engineering mathematics tutor.<br/>
+                   Ask any calculus, mechanics, or control systems question.</p>
+                <div class="example-chips">
+                    <button class="chip" onclick="useExample(this)">
+                        Differentiate x³ + 3x² + 2x
+                    </button>
+                    <button class="chip" onclick="useExample(this)">
+                        Integrate sin(x) from 0 to pi
+                    </button>
+                    <button class="chip" onclick="useExample(this)">
+                        Laplace transform of e to the power negative 2t
+                    </button>
+                    <button class="chip" onclick="useExample(this)">
+                        Find the limit of sin(x)/x as x approaches 0
+                    </button>
+                    <button class="chip" onclick="useExample(this)">
+                        Solve x squared minus 9 equals zero
+                    </button>
+                    <button class="chip" onclick="useExample(this)">
+                        Taylor series of sin(x) about 0
+                    </button>
+                </div>
+            </div>
+
+            <!-- Result card (hidden until query runs) -->
+            <div class="result-card hidden" id="result-card">
+
+                <!-- Query echo -->
+                <div class="query-bubble" id="query-bubble"></div>
+
+                <!-- Response -->
+                <div class="response-block">
+
+                    <!-- Meta row -->
+                    <div class="response-meta">
+                        <span class="op-badge" id="op-badge"></span>
+                        <code class="expr-tag" id="expr-tag"></code>
+                    </div>
+
+                    <!-- Symbolic result — LaTeX rendered -->
+                    <div class="sym-result-box">
+                        <div class="sym-result-label">
+                            <span class="dot"></span> Symbolic Result
+                        </div>
+                        <div class="sym-result-math" id="sym-result-math"></div>
+                    </div>
+
+                    <!-- Divider -->
+                    <div class="section-divider">
+                        <span>Step-by-Step Explanation</span>
+                    </div>
+
+                    <!-- Explanation -->
+                    <div class="explanation" id="explanation"></div>
+
+                </div>
+            </div>
+
+        </div>
+
+        <!-- ── Input bar ── -->
+        <div class="input-bar">
+            <div class="input-wrapper">
+                <textarea
+                    id="query-input"
+                    placeholder="Ask a mathematics question… (Enter to send)"
+                    rows="1"
+                    oninput="autoResize(this)"
+                ></textarea>
+                <button class="send-btn" id="send-btn" onclick="solveQuery()">
+                    ➤
+                </button>
+            </div>
+            <div class="input-hint" id="input-hint">
+                Supports: derivatives · integrals · limits · equations · Laplace · Taylor series
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<!-- Loading overlay -->
+<div class="loading-overlay hidden" id="loading-overlay">
+    <div class="loading-spinner"></div>
+    <div class="loading-text">Studify is thinking…</div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>

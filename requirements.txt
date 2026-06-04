@@ -1,0 +1,9 @@
+anthropic
+fastapi
+langchain
+langchain-core
+pydantic
+python-dotenv
+supabase
+sympy
+uvicorn
