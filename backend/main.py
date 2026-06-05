@@ -156,9 +156,11 @@ def get_stats():
     }
 
 
-app.mount("/static", StaticFiles(directory="../frontend"), name="static")
+FRONTEND_DIR = os.path.join(os.path.dirname(__file__), "..", "frontend")
+
+app.mount("/static", StaticFiles(directory=FRONTEND_DIR), name="static")
 
 
 @app.get("/")
 def serve_index():
-    return FileResponse("../frontend/index.html")
+    return FileResponse(os.path.join(FRONTEND_DIR, "index.html"))
