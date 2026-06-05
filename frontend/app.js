@@ -10,7 +10,7 @@ function autoResize(el) {
 }
 
 function toggleSidebar() {
-    $("sidebar").classList.toggle("collapsed");
+    document.getElementById("sidebar").classList.toggle("open");
 }
 
 function toggleTheme() {
