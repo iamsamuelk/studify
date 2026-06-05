@@ -2,7 +2,7 @@ from supabase import create_client
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from pipeline import run_pipeline
+from backend.pipeline import run_pipeline
 import sys
 import os
 sys.path.append(os.path.dirname(__file__))

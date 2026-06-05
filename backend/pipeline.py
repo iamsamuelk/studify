@@ -1,6 +1,6 @@
 import sympy as sp
-from nlp_parser import parse_query
-from math_engine import (
+from backend.nlp_parser import parse_query
+from backend.math_engine import (
     calculate_derivative,
     calculate_indefinite_integral,
     calculate_definite_integral,
@@ -11,7 +11,7 @@ from math_engine import (
     laplace_transform,
     inverse_laplace_transform,
 )
-from explainer import generate_explanation
+from backend.explainer import generate_explanation
 
 
 # Maps operation strings from the NLP parser to math_engine functions

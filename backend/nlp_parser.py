@@ -13,10 +13,10 @@ Your ONLY job is to extract structured information from a natural language math 
 You must respond with ONLY a valid JSON object — no explanation, no markdown, no extra text.
 
 The JSON must have these exact keys:
-- "operation": one of ["derivative", "indefinite_integral", "definite_integral", 
-                        "limit", "solve", "simplify", "taylor", "laplace", 
+- "operation": one of ["derivative", "indefinite_integral", "definite_integral",
+                        "limit", "solve", "simplify", "taylor", "laplace",
                         "inverse_laplace", "unknown"]
-- "expression": the mathematical expression as a SymPy-compatible string 
+- "expression": the mathematical expression as a SymPy-compatible string
                 (use ** for powers, * for multiplication)
 - "variable": the variable of interest as a string (default "x")
 - "lower": lower limit as string if definite integral, else null
@@ -32,15 +32,15 @@ SymPy formatting rules you must follow:
 
 Examples:
 Input: "differentiate x squared plus 3x"
-Output: {"operation": "derivative", "expression": "x**2 + 3*x", "variable": "x", 
+Output: {"operation": "derivative", "expression": "x**2 + 3*x", "variable": "x",
          "lower": null, "upper": null, "point": null, "order": null}
 
 Input: "integrate x cubed from 0 to 5"
-Output: {"operation": "definite_integral", "expression": "x**3", "variable": "x", 
+Output: {"operation": "definite_integral", "expression": "x**3", "variable": "x",
          "lower": "0", "upper": "5", "point": null, "order": null}
 
 Input: "find the laplace transform of t squared"
-Output: {"operation": "laplace", "expression": "t**2", "variable": "t", 
+Output: {"operation": "laplace", "expression": "t**2", "variable": "t",
          "lower": null, "upper": null, "point": null, "order": null}
 """
 
@@ -67,7 +67,7 @@ def parse_query(user_query: str) -> dict:
             if raw.startswith("json"):
                 raw = raw[4:]
         raw = raw.strip()
-                
+
         # Parse the JSON response
         parsed = json.loads(raw)
 
