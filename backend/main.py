@@ -5,23 +5,24 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from backend.pipeline import run_pipeline
-import sys
 import os
+import sys
 sys.path.append(os.path.dirname(__file__))
 
 
+# ── Supabase ─────────────────────────────────────────────────────────────────
+
 supabase = create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_ANON_KEY"))
 
-# ── App setup ───────────────────────────────────────────────
+# ── App setup ────────────────────────────────────────────────────────────────
 
 app = FastAPI(
-    title="Studify — Neurosymbolic Engineering Assistant",
-    description="A neurosymbolic AI academic assistant for undergraduate "
-                "engineering mathematics.",
-    version="1.0.0"
+    title="Studify — AI Engineering Mathematics Tutor",
+    description="A neurosymbolic AI academic assistant for undergraduate engineering mathematics.",
+    version="2.0.0"
 )
 
-# ── CORS — allows the frontend to communicate with this backend ──────────
+# ── CORS ─────────────────────────────────────────────────────────────────────
 
 app.add_middleware(
     CORSMiddleware,
@@ -32,7 +33,7 @@ app.add_middleware(
 )
 
 
-# ── Database setup ────────────────────────────────────────────────────────────
+# ── Database ─────────────────────────────────────────────────────────────────
 
 def log_query(user_query: str, result: dict):
     parsed = result.get("parsed") or {}
@@ -47,7 +48,7 @@ def log_query(user_query: str, result: dict):
     }).execute()
 
 
-# ── Request / Response schemas ───────────────────────────────────────────────
+# ── Schemas ──────────────────────────────────────────────────────────────────
 
 class QueryRequest(BaseModel):
     query: str
@@ -66,29 +67,21 @@ class QueryResponse(BaseModel):
 
 # ── Routes ───────────────────────────────────────────────────────────────────
 
-@app.get("/")
-def root():
-    """Health check endpoint."""
+@app.get("/health")
+def health():
     return {
         "status": "online",
-        "system": "Studify Neurosymbolic Assistant",
-        "version": "1.0.0"
+        "system": "Studify",
+        "version": "2.0.0"
     }
 
 
 @app.post("/solve", response_model=QueryResponse)
 def solve(request: QueryRequest):
-    """
-    Main endpoint. Accepts a natural language math query,
-    runs it through the full neurosymbolic pipeline,
-    and returns the symbolic result and explanation.
-    """
     if not request.query.strip():
         raise HTTPException(status_code=400, detail="Query cannot be empty.")
 
     result = run_pipeline(request.query)
-
-    # Log to database
     log_query(request.query, result)
 
     return QueryResponse(
@@ -107,7 +100,6 @@ def solve(request: QueryRequest):
 def get_history(limit: int = 20):
     response = supabase.table("queries").select("*").order("id", desc=True).limit(limit).execute()
     rows = response.data or []
-
     return {
         "history": [
             {
@@ -128,10 +120,10 @@ def get_history(limit: int = 20):
 
 @app.get("/stats")
 def get_stats():
-    total_res = supabase.table("queries").select("id", count="exact").execute()
+    total_res = supabase.table("queries").select("*", count="exact").execute()
     total = total_res.count or 0
 
-    success_res = supabase.table("queries").select("id", count="exact").eq("success", True).execute()
+    success_res = supabase.table("queries").select("*", count="exact").eq("success", True).execute()
     successful = success_res.count or 0
 
     ops_res = supabase.table("queries").select("operation").not_.is_("operation", "null").execute()
@@ -156,6 +148,8 @@ def get_stats():
     }
 
 
+# ── Serve Frontend ───────────────────────────────────────────────────────────
+
 FRONTEND_DIR = os.path.join(os.path.dirname(__file__), "..", "frontend")
 
 app.mount("/static", StaticFiles(directory=FRONTEND_DIR), name="static")
@@ -163,4 +157,12 @@ app.mount("/static", StaticFiles(directory=FRONTEND_DIR), name="static")
 
 @app.get("/")
 def serve_index():
+    return FileResponse(os.path.join(FRONTEND_DIR, "index.html"))
+
+
+@app.get("/{path:path}")
+def serve_frontend(path: str):
+    file_path = os.path.join(FRONTEND_DIR, path)
+    if os.path.exists(file_path):
+        return FileResponse(file_path)
     return FileResponse(os.path.join(FRONTEND_DIR, "index.html"))
