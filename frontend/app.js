@@ -9,9 +9,36 @@ function autoResize(el) {
     el.style.height = Math.min(el.scrollHeight, 120) + 'px';
 }
 
-function toggleSidebar() {
-    document.getElementById("sidebar").classList.toggle("open");
+function isMobile() {
+    return window.innerWidth <= 768;
 }
+
+function toggleSidebar() {
+    const sidebar = $("sidebar");
+    if (isMobile()) {
+        const isOpen = sidebar.classList.contains("open");
+        if (isOpen) {
+            closeSidebar();
+        } else {
+            openSidebar();
+        }
+    } else {
+        sidebar.classList.toggle("collapsed");
+    }
+}
+
+function openSidebar() {
+    $("sidebar").classList.add("open");
+    $("sidebar-overlay").classList.add("active");
+}
+
+function closeSidebar() {
+    $("sidebar").classList.remove("open");
+    $("sidebar-overlay").classList.remove("active");
+}
+
+// Close sidebar when clicking the overlay
+$("sidebar-overlay").addEventListener("click", closeSidebar);
 
 function toggleTheme() {
     const html = document.documentElement;
@@ -25,11 +52,9 @@ function toggleTheme() {
 function initTheme() {
     const saved = localStorage.getItem("studify-theme");
     if (saved) {
-        // User previously toggled — respect their choice
         document.documentElement.setAttribute("data-theme", saved);
         $("theme-icon").textContent = saved === "dark" ? "☀️" : "🌙";
     } else {
-        // No saved preference — follow system setting
         const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
         document.documentElement.setAttribute("data-theme", prefersDark ? "dark" : "light");
         $("theme-icon").textContent = prefersDark ? "☀️" : "🌙";
@@ -44,28 +69,21 @@ function useExample(btn) {
 
 // Convert markdown to basic HTML
 function renderMarkdown(text) {
-    // Handle markdown tables first (before other replacements)
     text = text.replace(
         /((\|.+\|\n?)+)/gm,
         (match) => {
             const rows = match.trim().split("\n").filter(r => r.trim());
             if (rows.length < 2) return match;
-
             let html = '<table class="md-table"><thead><tr>';
             const headers = rows[0].split("|").filter(c => c.trim() !== "");
-            headers.forEach(h => {
-                html += `<th>${h.trim()}</th>`;
-            });
+            headers.forEach(h => { html += `<th>${h.trim()}</th>`; });
             html += "</tr></thead><tbody>";
-
-            // Skip the separator row (row[1] is always ---|---  etc.)
             rows.slice(2).forEach(row => {
                 const cells = row.split("|").filter(c => c.trim() !== "");
                 html += "<tr>";
                 cells.forEach(c => { html += `<td>${c.trim()}</td>`; });
                 html += "</tr>";
             });
-
             html += "</tbody></table>";
             return html;
         }
@@ -89,12 +107,11 @@ async function solveQuery() {
     const query = $("query-input").value.trim();
     if (!query) return;
 
-    // Show loading
     $("loading-overlay").classList.remove("hidden");
     $("send-btn").disabled = true;
 
     try {
-        const res  = await fetch(`${API}/solve`, {
+        const res = await fetch(`${API}/solve`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ query })
@@ -110,7 +127,7 @@ async function solveQuery() {
         }
 
     } catch (err) {
-        alert("Cannot reach backend. Is uvicorn running on port 8000?");
+        alert("Cannot reach backend. Please try again.");
     } finally {
         $("loading-overlay").classList.add("hidden");
         $("send-btn").disabled = false;
@@ -122,17 +139,11 @@ async function solveQuery() {
 // ── Display result ────────────────────────────────────────────────────────────
 
 function displayResult(query, data) {
-    // Hide welcome screen
     $("welcome").classList.add("hidden");
-
-    // Query bubble
     $("query-bubble").textContent = query;
-
-    // Operation badge and expression
     $("op-badge").textContent = (data.operation || "").replace(/_/g, " ");
-    $("expr-tag").textContent  = data.expression || "";
+    $("expr-tag").textContent = data.expression || "";
 
-    // Symbolic result — use MathJax direct conversion (most reliable method)
     const symEl = $("sym-result-math");
     symEl.innerHTML = "";
 
@@ -143,7 +154,6 @@ function displayResult(query, data) {
                 { display: false }
             );
             symEl.appendChild(mathNode);
-            // Push updated CSS to document
             MathJax.startup.document.clear();
             MathJax.startup.document.updateDocument();
         } catch (e) {
@@ -153,22 +163,17 @@ function displayResult(query, data) {
         symEl.textContent = data.symbolic_result || "";
     }
 
-    // Explanation — render markdown then let MathJax auto-scan
     const expEl = $("explanation");
     expEl.innerHTML = renderMarkdown(data.explanation || "");
-
-    // Show result card
     $("result-card").classList.remove("hidden");
 
-    // Typeset explanation area (MathJax scans for $$ and \( delimiters)
     if (window.MathJax && MathJax.startup) {
         MathJax.startup.promise.then(() => {
             MathJax.typesetPromise([expEl])
-                .catch(err => console.warn("MathJax explanation error:", err));
+                .catch(err => console.warn("MathJax error:", err));
         });
     }
 
-    // Scroll to top of result
     $("results-area").scrollTo({ top: 0, behavior: "smooth" });
 }
 
@@ -176,9 +181,9 @@ function displayResult(query, data) {
 
 async function loadStats() {
     try {
-        const res  = await fetch(`${API}/stats`);
+        const res = await fetch(`${API}/stats`);
         const data = await res.json();
-        $("stat-total").textContent   = data.total_queries;
+        $("stat-total").textContent = data.total_queries;
         $("stat-success").textContent = data.success_rate;
     } catch (_) {}
 }
@@ -187,7 +192,7 @@ async function loadStats() {
 
 async function loadHistory() {
     try {
-        const res  = await fetch(`${API}/history?limit=15`);
+        const res = await fetch(`${API}/history?limit=15`);
         const data = await res.json();
         const list = $("history-list");
 
@@ -205,20 +210,24 @@ async function loadHistory() {
                 <div class="h-meta">
                     <span class="h-dot ${item.success ? 'ok' : 'err'}">●</span>
                     ${item.operation || "unknown"} ·
-                    ${item.timestamp.slice(0,16).replace("T"," ")}
+                    ${item.timestamp.slice(0, 16).replace("T", " ")}
                 </div>`;
 
             div.onclick = () => {
                 if (item.success && item.symbolic_result) {
                     displayResult(item.query, {
-                        operation:            item.operation,
-                        expression:           item.expression,
-                        symbolic_result:      item.symbolic_result,
+                        operation: item.operation,
+                        expression: item.expression,
+                        symbolic_result: item.symbolic_result,
                         symbolic_result_latex: item.symbolic_result_latex || null,
-                        explanation:          item.explanation || ""
+                        explanation: item.explanation || ""
                     });
                 } else {
                     $("query-input").value = item.query;
+                }
+                // Auto-close sidebar on mobile after selecting history item
+                if (isMobile()) {
+                    closeSidebar();
                 }
             };
 
@@ -237,16 +246,16 @@ $("query-input").addEventListener("keydown", e => {
     }
 });
 
-// ── Init ──────────────────────────────────────────────────────────────────────
-initTheme();
-loadStats();
-loadHistory();
+// ── System theme change ───────────────────────────────────────────────────────
 
-// Listen for system theme changes (e.g. user switches Mac to dark mode)
 window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", e => {
-    // Only follow system if user hasn't manually toggled
     if (!localStorage.getItem("studify-theme")) {
         document.documentElement.setAttribute("data-theme", e.matches ? "dark" : "light");
         $("theme-icon").textContent = e.matches ? "☀️" : "🌙";
     }
 });
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+initTheme();
+loadStats();
+loadHistory();

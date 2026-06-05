@@ -613,11 +613,31 @@ textarea::placeholder { color: var(--text-muted); }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
 
+/* ── Sidebar overlay (mobile) ─────────────────────────────────────────────── */
+
+.sidebar-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.4);
+    z-index: 99;
+}
+
+.sidebar-overlay.active {
+    display: block;
+}
+
+/* ── Example chips — center text ─────────────────────────────────────────── */
+
+.chip {
+    text-align: center;
+}
+
 /* ── Mobile Responsive ───────────────────────────────────────────────────── */
 
 @media (max-width: 768px) {
 
-    /* Hide sidebar by default on mobile */
+    /* Sidebar hidden off-screen by default */
     .sidebar {
         position: fixed;
         top: 0;
@@ -625,12 +645,18 @@ textarea::placeholder { color: var(--text-muted); }
         height: 100vh;
         z-index: 100;
         transform: translateX(-100%);
-        transition: transform 0.2s ease;
-        width: 280px;
+        transition: transform 0.25s ease;
+        width: 80%;
+        max-width: 300px;
     }
 
     .sidebar.open {
         transform: translateX(0);
+    }
+
+    /* Collapsed class has no effect on mobile */
+    .sidebar.collapsed {
+        transform: translateX(-100%);
     }
 
     /* Main takes full width */
@@ -638,42 +664,51 @@ textarea::placeholder { color: var(--text-muted); }
         width: 100%;
     }
 
-    /* Smaller topbar */
-    .topbar {
-        padding: 0 0.75rem;
+    /* Input bar fixed to bottom */
+    .input-bar {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        z-index: 50;
+        background: var(--bg);
+        padding: 0.5rem 0.75rem 1rem;
+        border-top: 1px solid var(--border);
     }
 
+    /* Results area needs bottom padding so content isn't hidden behind input bar */
+    .results-area {
+        padding-bottom: 120px;
+    }
+
+    /* Welcome screen */
+    .welcome {
+        padding: 2rem 1rem;
+    }
+
+    .welcome h1 {
+        font-size: 1.8rem;
+    }
+
+    /* Example chips stack vertically and fill width */
+    .example-chips {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0.5rem;
+    }
+
+    .chip {
+        width: 100%;
+    }
+
+    /* Topbar */
     .topbar-title {
         font-size: 0.9rem;
     }
 
-    /* Example chips wrap properly */
-    .example-chips {
-        flex-direction: column;
-        align-items: stretch;
-    }
-
-    .chip {
-        text-align: left;
-        width: 100%;
-    }
-
-    /* Welcome screen padding */
-    .welcome {
-        padding: 1.5rem 1rem;
-    }
-
-    .welcome h1 {
-        font-size: 1.6rem;
-    }
-
-    /* Result card padding */
+    /* Result card */
     .result-card {
         padding: 1rem;
-    }
-
-    /* Input bar */
-    .input-bar {
-        padding: 0.5rem 0.75rem;
+        margin: 0.5rem;
     }
 }
