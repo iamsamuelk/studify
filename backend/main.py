@@ -1,6 +1,8 @@
 from supabase import create_client
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from backend.pipeline import run_pipeline
 import sys
@@ -152,3 +154,11 @@ def get_stats():
         "success_rate": round(successful / total * 100, 2) if total > 0 else 0,
         "by_operation": by_operation
     }
+
+
+app.mount("/static", StaticFiles(directory="../frontend"), name="static")
+
+
+@app.get("/")
+def serve_index():
+    return FileResponse("../frontend/index.html")
