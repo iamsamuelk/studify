@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
-MODEL_NAME = "gemini-2.5-pro"
+MODEL_NAME = "gemini-3.6-flash"
 
 SYSTEM_PROMPT = """
 You are Studify, a patient and thorough engineering mathematics tutor for

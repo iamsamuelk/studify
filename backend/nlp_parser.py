@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
-MODEL_NAME = "gemini-2.5-flash"
+MODEL_NAME = "gemini-3.5-flash-lite"
 
 SYSTEM_PROMPT = """
 You are a mathematical expression parser for an engineering academic assistant.
