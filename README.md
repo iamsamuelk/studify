@@ -5,7 +5,7 @@ Ask any calculus, mechanics, or control systems question in plain English
 and get a symbolic result plus a step-by-step explanation.
 
 ## Live Demo
-[your-app.quikdb.net](https://your-app.quikdb.net) ← fill this in after deployment
+[https://studify.quikdb.net] ← fill this in after deployment
 
 ## Features
 - Natural language math queries
