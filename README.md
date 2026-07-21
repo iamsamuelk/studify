@@ -35,5 +35,5 @@ See `.env.example`
 
 | Version | Date | Change |
 |---|---|---|
-| v1.1 | 2026-07-21 | **Migrated AI provider from Anthropic Claude to Google Gemini.** Claude's API credits ran out and, without funding to keep paying for usage, the project moved to Gemini's free tier to keep the app running at zero cost. `nlp_parser.py` (interpretation layer) now uses `gemini-2.5-flash`, and `explainer.py` (explanation layer) now uses `gemini-2.5-pro`, both via the `google-genai` SDK. Functionally the pipeline architecture `S(I) = G(I, T(E))` is unchanged — only the underlying model provider was swapped. |
+| v1.1 | 2026-07-21 | **Migrated AI provider from Anthropic Claude to Google Gemini.** Claude's API credits ran out and, without funding to keep paying for usage, the project moved to Gemini's free tier to keep the app running at zero cost. `nlp_parser.py` (interpretation layer) now uses `gemini-3.5-flash-lite`, and `explainer.py` (explanation layer) now uses `gemini-3.6-flash`, both via the `google-genai` SDK. Functionally the pipeline architecture `S(I) = G(I, T(E))` is unchanged — only the underlying model provider was swapped. |
 | v1.0 | — | Initial build: Claude Haiku (parsing) + Claude Sonnet (explanations), Supabase (PostgreSQL), deployed to QuikDB. |
