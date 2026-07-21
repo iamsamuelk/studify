@@ -1,5 +1,5 @@
 aiofiles
-anthropic
+google-genai
 fastapi
 langchain
 langchain-core

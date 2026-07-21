@@ -1,10 +1,13 @@
 import json
-from anthropic import Anthropic
+import os
+from google import genai
+from google.genai import types
 from dotenv import load_dotenv
 
 load_dotenv()
 
-client = Anthropic()
+client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
+MODEL_NAME = "gemini-2.5-flash"
 
 SYSTEM_PROMPT = """
 You are a mathematical expression parser for an engineering academic assistant.
@@ -51,17 +54,17 @@ def parse_query(user_query: str) -> dict:
     This is the NLP Interpretation Layer of the neurosymbolic pipeline.
     """
     try:
-        response = client.messages.create(
-            model="claude-haiku-4-5-20251001",
-            max_tokens=256,
-            system=SYSTEM_PROMPT,
-            messages=[
-                {"role": "user", "content": user_query}
-            ]
+        response = client.models.generate_content(
+            model=MODEL_NAME,
+            contents=user_query,
+            config=types.GenerateContentConfig(
+                system_instruction=SYSTEM_PROMPT,
+                max_output_tokens=256,
+            ),
         )
 
-        raw = response.content[0].text.strip()
-        # Strip markdown code fences if Claude wraps the JSON
+        raw = response.text.strip()
+        # Strip markdown code fences if Gemini wraps the JSON
         if raw.startswith("```"):
             raw = raw.split("```")[1]
             if raw.startswith("json"):

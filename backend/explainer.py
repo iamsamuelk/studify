@@ -1,9 +1,12 @@
-from anthropic import Anthropic
+import os
+from google import genai
+from google.genai import types
 from dotenv import load_dotenv
 
 load_dotenv()
 
-client = Anthropic()
+client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
+MODEL_NAME = "gemini-2.5-pro"
 
 SYSTEM_PROMPT = """
 You are Studify, a patient and thorough engineering mathematics tutor for
@@ -54,16 +57,16 @@ Verified result from symbolic engine: {result}
 Please explain step-by-step how this result was obtained.
 """
 
-        response = client.messages.create(
-            model="claude-sonnet-4-6",
-            max_tokens=4096,
-            system=SYSTEM_PROMPT,
-            messages=[
-                {"role": "user", "content": user_message}
-            ]
+        response = client.models.generate_content(
+            model=MODEL_NAME,
+            contents=user_message,
+            config=types.GenerateContentConfig(
+                system_instruction=SYSTEM_PROMPT,
+                max_output_tokens=4096,
+            ),
         )
 
-        return response.content[0].text.strip()
+        return response.text.strip()
 
     except Exception as e:
         return f"Explanation error: {str(e)}"
