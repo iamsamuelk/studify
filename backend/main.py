@@ -59,6 +59,11 @@ class QueryResponse(BaseModel):
     query: str
     operation: str | None = None
     expression: str | None = None
+    variable: str | None = None
+    lower: str | None = None
+    upper: str | None = None
+    point: str | None = None
+    order: int | None = None
     symbolic_result: str | None = None
     symbolic_result_latex: str | None = None
     explanation: str | None = None
@@ -84,11 +89,17 @@ def solve(request: QueryRequest):
     result = run_pipeline(request.query)
     log_query(request.query, result)
 
+    parsed = result.get("parsed") or {}
     return QueryResponse(
         success=result["success"],
         query=result["query"],
-        operation=result["parsed"].get("operation") if result.get("parsed") else None,
-        expression=result["parsed"].get("expression") if result.get("parsed") else None,
+        operation=parsed.get("operation"),
+        expression=parsed.get("expression"),
+        variable=parsed.get("variable"),
+        lower=parsed.get("lower"),
+        upper=parsed.get("upper"),
+        point=parsed.get("point"),
+        order=int(parsed["order"]) if parsed.get("order") not in (None, "") else None,
         symbolic_result=result.get("symbolic_result"),
         symbolic_result_latex=result.get("symbolic_result_latex"),
         explanation=result.get("explanation"),
