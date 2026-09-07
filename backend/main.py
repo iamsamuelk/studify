@@ -75,6 +75,9 @@ class QueryResponse(BaseModel):
     symbolic_result_latex: str | None = None
     explanation: str | None = None
     error: str | None = None
+    interpretation_time_s: float | None = None
+    symbolic_time_s: float | None = None
+    explanation_time_s: float | None = None
 
 
 # ── Routes ───────────────────────────────────────────────────────────────────
@@ -113,6 +116,9 @@ def solve(request: QueryRequest):
         symbolic_result_latex=result.get("symbolic_result_latex"),
         explanation=result.get("explanation"),
         error=result.get("error"),
+        interpretation_time_s=result.get("interpretation_time_s"),
+        symbolic_time_s=result.get("symbolic_time_s"),
+        explanation_time_s=result.get("explanation_time_s"),
     )
 
 

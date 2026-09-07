@@ -1,0 +1,31 @@
+ID,Level,Query,Expected operation,Expected expression,Got operation,Got expression,Got success,Got error,Operation correct,Expression correct,Parameters correct,Consistent (3 runs),Mean parse time (s),skip_explanation honored
+Q01,Simple,Differentiate x cubed plus 3x squared plus 2x,derivative,x**3 + 3*x**2 + 2*x,derivative,x**3 + 3*x**2 + 2*x,True,,True,True,True,True,2.11,True
+Q02,Simple,What is the derivative of sin(x)?,derivative,sin(x),derivative,sin(x),True,,True,True,True,True,1.803,True
+Q03,Simple,Integrate 2x,indefinite integral,2*x,indefinite_integral,2*x,True,,True,True,True,True,1.911,True
+Q04,Simple,Find the integral of cos x dx,indefinite integral,cos(x),indefinite_integral,cos(x),True,,True,True,True,True,2.084,True
+Q05,Simple,Integrate x squared from 0 to 3,definite integral,x**2,definite_integral,x**2,True,,True,True,True,True,1.7,True
+Q06,Simple,Solve x squared minus 9 equals zero,solve,x**2 - 9,solve,x**2 - 9,True,,True,True,True,True,1.713,True
+Q07,Simple,Simplify (x^2 - 1)/(x - 1),simplify,(x**2 - 1)/(x - 1),simplify,(x**2 - 1)/(x - 1),True,,True,True,True,True,1.791,True
+Q08,Simple,Laplace transform of 1,laplace,1,laplace,1,True,,True,True,True,True,2.685,True
+Q09,Simple,Find the limit of sin(x)/x as x approaches 0,limit,sin(x)/x,limit,sin(x)/x,True,,True,True,True,True,2.08,True
+Q10,Simple,Inverse Laplace transform of 1/s,inverse laplace,1/s,inverse_laplace,1/s,True,,True,True,True,True,1.816,True
+Q11,Intermediate,Differentiate x squared times e to the x,derivative,x**2*exp(x),derivative,x**2 * exp(x),True,,True,True,True,True,1.653,True
+Q12,Intermediate,d/dx of sin(x^2),derivative,sin(x**2),derivative,sin(x**2),True,,True,True,True,True,1.806,True
+Q13,Intermediate,Integrate sin(x) from 0 to pi,definite integral,sin(x),definite_integral,sin(x),True,,True,True,True,True,1.864,True
+Q14,Intermediate,Evaluate the integral of e^(-x) between 0 and infinity,definite integral,exp(-x),definite_integral,exp(-x),True,,True,True,True,True,2.305,True
+Q15,Intermediate,Integrate x e^x with respect to x,indefinite integral,x*exp(x),indefinite_integral,x*exp(x),True,,True,True,True,True,2.234,True
+Q16,Intermediate,limit of (1 + 1/x)^x as x tends to infinity,limit,(1 + 1/x)**x,limit,(1 + 1/x)**x,True,,True,True,True,True,1.687,True
+Q17,Intermediate,Find the roots of x^2 + 4x + 4,solve,x**2 + 4*x + 4,solve,x**2 + 4*x + 4,True,,True,True,True,True,2.094,True
+Q18,Intermediate,Taylor series of sin(x) about 0,taylor,sin(x),taylor,sin(x),True,,True,True,True,True,1.822,True
+Q19,Intermediate,Laplace transform of e to the power negative 2t,laplace,exp(-2*t),laplace,exp(-2*t),True,,True,True,True,True,1.553,True
+Q20,Intermediate,Find the Laplace transform of t squared,laplace,t**2,laplace,t**2,True,,True,True,True,True,1.876,True
+Q21,Intermediate,Inverse Laplace of 1 over s plus 2,inverse laplace,1/(s + 2),inverse_laplace,1 / (s + 2),True,,True,True,True,False,1.543,True
+Q22,Intermediate,Simplify sin squared x plus cos squared x,simplify,sin(x)**2 + cos(x)**2,simplify,sin(x)**2 + cos(x)**2,True,,True,True,True,True,1.736,True
+Q23,Multi-step,Differentiate ln(x) divided by x,derivative,log(x)/x,derivative,log(x)/x,True,,True,True,True,False,1.455,True
+Q24,Multi-step,Differentiate e^(-2t) cos(3t) with respect to t,derivative,exp(-2*t)*cos(3*t),derivative,exp(-2*t)*cos(3*t),True,,True,True,True,True,1.706,True
+Q25,Multi-step,Integrate 1/(x^2 - 1) using partial fractions,indefinite integral,1/(x**2 - 1),indefinite_integral,1/(x**2 - 1),True,,True,True,True,True,2.093,True
+Q26,Multi-step,Integrate x sin x from 0 to pi,definite integral,x*sin(x),definite_integral,x*sin(x),True,,True,True,True,True,1.931,True
+Q27,Multi-step,Solve the cubic x^3 - 6x^2 + 11x - 6 = 0,solve,x**3 - 6*x**2 + 11*x - 6,solve,x**3 - 6*x**2 + 11*x - 6,True,,True,True,True,True,1.702,True
+Q28,Multi-step,Expand ln(1+x) as a Taylor series about 0 up to order 5,taylor,log(1 + x),taylor,log(1 + x),True,,True,True,True,True,1.636,True
+Q29,Multi-step,Laplace transform of t e^(-t),laplace,t*exp(-t),laplace,t*exp(-t),True,,True,True,True,True,1.727,True
+Q30,Multi-step,Find the inverse Laplace transform of 1/(s^2 + 3s + 2),inverse laplace,1/(s**2 + 3*s + 2),inverse_laplace,1/(s**2 + 3*s + 2),True,,True,True,True,True,1.676,True

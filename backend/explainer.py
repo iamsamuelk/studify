@@ -37,6 +37,7 @@ def _generate_with_fallback(contents, config):
         )
         return response, FALLBACK_MODEL
 
+
 SYSTEM_PROMPT = """
 You are Studify, a patient and thorough engineering mathematics tutor for
 undergraduate students in Nigeria and beyond.

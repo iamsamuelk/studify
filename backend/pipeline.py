@@ -1,3 +1,4 @@
+import time
 import sympy as sp
 from backend.nlp_parser import parse_query
 from backend.math_engine import (
@@ -75,10 +76,15 @@ def run_pipeline(user_query: str, skip_explanation: bool = False) -> dict:
             "parsed": None,
             "symbolic_result": None,
             "explanation": None,
+            "interpretation_time_s": None,
+            "symbolic_time_s": None,
+            "explanation_time_s": None,
         }
 
     # Step 3 — NLP Parsing: I → {operation, expression, ...}
+    t0 = time.perf_counter()
     parsed = parse_query(user_query)
+    interpretation_time_s = time.perf_counter() - t0
 
     # Step 4 — Validate parsing result
     if parsed.get("operation") == "unknown" or not parsed.get("expression"):
@@ -93,6 +99,9 @@ def run_pipeline(user_query: str, skip_explanation: bool = False) -> dict:
             "parsed": parsed,
             "symbolic_result": None,
             "explanation": None,
+            "interpretation_time_s": interpretation_time_s,
+            "symbolic_time_s": None,
+            "explanation_time_s": None,
         }
 
     operation = parsed["operation"]
@@ -106,10 +115,15 @@ def run_pipeline(user_query: str, skip_explanation: bool = False) -> dict:
             "parsed": parsed,
             "symbolic_result": None,
             "explanation": None,
+            "interpretation_time_s": interpretation_time_s,
+            "symbolic_time_s": None,
+            "explanation_time_s": None,
         }
 
+    t0 = time.perf_counter()
     symbolic_result = OPERATION_MAP[operation](parsed)
-    
+    symbolic_time_s = time.perf_counter() - t0
+
     # Convert symbolic result to LaTeX for frontend rendering
     try:
         symbolic_result_latex = sp.latex(sp.sympify(str(symbolic_result)))
@@ -125,18 +139,24 @@ def run_pipeline(user_query: str, skip_explanation: bool = False) -> dict:
             "parsed": parsed,
             "symbolic_result": None,
             "explanation": None,
+            "interpretation_time_s": interpretation_time_s,
+            "symbolic_time_s": symbolic_time_s,
+            "explanation_time_s": None,
         }
 
     # Step 7 — Generate explanation: G(I, T(E))
+    explanation_time_s = None
     if skip_explanation:
         explanation = None
     else:
+        t0 = time.perf_counter()
         explanation = generate_explanation(
             user_query=user_query,
             operation=operation,
             expression=parsed["expression"],
             result=str(symbolic_result),
         )
+        explanation_time_s = time.perf_counter() - t0
 
     # Step 8 — Return full structured response
     return {
@@ -147,6 +167,9 @@ def run_pipeline(user_query: str, skip_explanation: bool = False) -> dict:
         "symbolic_result": str(symbolic_result),
         "symbolic_result_latex": symbolic_result_latex,
         "explanation": explanation,
+        "interpretation_time_s": interpretation_time_s,
+        "symbolic_time_s": symbolic_time_s,
+        "explanation_time_s": explanation_time_s,
     }
 
 
