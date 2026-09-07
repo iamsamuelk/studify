@@ -7,7 +7,36 @@ from dotenv import load_dotenv
 load_dotenv()
 
 client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
-MODEL_NAME = "gemini-3.5-flash-lite"
+PRIMARY_MODEL = "gemini-3.5-flash-lite"
+FALLBACK_MODEL = "gemini-3.1-flash-lite"
+
+
+def _is_quota_error(exc) -> bool:
+    text = str(exc)
+    return "429" in text or "RESOURCE_EXHAUSTED" in text or "quota" in text.lower()
+
+
+def _generate_with_fallback(contents, config):
+    """
+    Tries PRIMARY_MODEL first on every call. If that call hits a quota/
+    rate-limit error, retries the SAME call once on FALLBACK_MODEL.
+    The next call always starts again on PRIMARY_MODEL, so once its
+    quota window resets the pipeline automatically switches back —
+    no persistent "stuck on fallback" state is kept.
+    """
+    try:
+        response = client.models.generate_content(
+            model=PRIMARY_MODEL, contents=contents, config=config,
+        )
+        return response, PRIMARY_MODEL
+    except Exception as e:
+        if not _is_quota_error(e):
+            raise
+        print(f"[nlp_parser] {PRIMARY_MODEL} quota hit, falling back to {FALLBACK_MODEL}")
+        response = client.models.generate_content(
+            model=FALLBACK_MODEL, contents=contents, config=config,
+        )
+        return response, FALLBACK_MODEL
 
 SYSTEM_PROMPT = """
 You are a mathematical expression parser for an engineering academic assistant.
@@ -54,8 +83,7 @@ def parse_query(user_query: str) -> dict:
     This is the NLP Interpretation Layer of the neurosymbolic pipeline.
     """
     try:
-        response = client.models.generate_content(
-            model=MODEL_NAME,
+        response, model_used = _generate_with_fallback(
             contents=user_query,
             config=types.GenerateContentConfig(
                 system_instruction=SYSTEM_PROMPT,
@@ -81,6 +109,7 @@ def parse_query(user_query: str) -> dict:
             if key not in parsed:
                 parsed[key] = None
 
+        parsed["_model_used"] = model_used
         return parsed
 
     except json.JSONDecodeError:
