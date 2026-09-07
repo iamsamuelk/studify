@@ -52,6 +52,13 @@ def log_query(user_query: str, result: dict):
 
 class QueryRequest(BaseModel):
     query: str
+    skip_explanation: bool = False
+    # ^ For automated evaluation of the interpretation layer only (e.g.
+    # Table 4.9 NLP accuracy testing). When True, the explainer model is
+    # never called, so evaluation traffic doesn't consume the explainer's
+    # daily quota (gemini-3.6-flash: RPD 20) or pollute /history and
+    # /stats with synthetic queries. Defaults to False so normal frontend
+    # usage is unaffected.
 
 
 class QueryResponse(BaseModel):
@@ -86,8 +93,10 @@ def solve(request: QueryRequest):
     if not request.query.strip():
         raise HTTPException(status_code=400, detail="Query cannot be empty.")
 
-    result = run_pipeline(request.query)
-    log_query(request.query, result)
+    result = run_pipeline(request.query, skip_explanation=request.skip_explanation)
+
+    if not request.skip_explanation:
+        log_query(request.query, result)
 
     parsed = result.get("parsed") or {}
     return QueryResponse(

@@ -48,7 +48,7 @@ OPERATION_MAP = {
 }
 
 
-def run_pipeline(user_query: str) -> dict:
+def run_pipeline(user_query: str, skip_explanation: bool = False) -> dict:
     """
     The full neurosymbolic pipeline: S(I) = G(I, T(E))
 
@@ -59,6 +59,10 @@ def run_pipeline(user_query: str) -> dict:
     Step 5: Route to symbolic engine → compute T(E)
     Step 6: Validate symbolic result
     Step 7: Generate explanation G conditioned on I and T(E)
+             (skipped if skip_explanation=True -- e.g. for interpretation-
+             only evaluation, where the explainer model's quota should be
+             reserved for genuine explanation-quality testing, Tables
+             4.12/4.13, rather than spent on every interpretation check)
     Step 8: Return structured response
     """
 
@@ -124,12 +128,15 @@ def run_pipeline(user_query: str) -> dict:
         }
 
     # Step 7 — Generate explanation: G(I, T(E))
-    explanation = generate_explanation(
-        user_query=user_query,
-        operation=operation,
-        expression=parsed["expression"],
-        result=str(symbolic_result),
-    )
+    if skip_explanation:
+        explanation = None
+    else:
+        explanation = generate_explanation(
+            user_query=user_query,
+            operation=operation,
+            expression=parsed["expression"],
+            result=str(symbolic_result),
+        )
 
     # Step 8 — Return full structured response
     return {

@@ -2,30 +2,41 @@
 eval_nlp_pipeline.py
 
 Runs the Table 4.9 test bank (30 natural-language queries) against the LIVE
-Studify /solve endpoint, checks the NLP interpretation layer's output against
-the expected operation/expression/parameters, repeats each query 3x to check
-consistency, and writes real results to nlp_results.csv.
+Studify /solve endpoint with skip_explanation=True, checks the NLP
+interpretation layer's output against the expected operation/expression/
+parameters, repeats each query 3x to check consistency, and writes real
+results to nlp_results.csv.
 
 =====================================================================
-BEFORE RUNNING (checklist from prior debugging):
+WHY skip_explanation=True (as of the v1.5 main.py patch):
 =====================================================================
-1. Redeploy the patched backend/main.py to QuikDB FIRST. The previous
-   run (2026-09-07) was against the OLD deployment, so lower/upper/point/
-   order came back null and every "Parameters correct" check failed even
-   on queries that were otherwise correct. Confirm the fix is live by
-   hitting /solve once manually and checking the response includes
-   non-null "lower"/"upper" for a definite integral query.
-2. gemini-3.5-flash-lite free tier quota is 15 requests/minute. The
-   previous run fired 90 calls back-to-back with no delay and hit
-   429 RESOURCE_EXHAUSTED after ~14 calls, cascading failures through
-   the rest of the test bank. This version throttles calls and retries
-   on 429 with backoff -- but a full 90-call run will now take roughly
-   7-10 minutes minimum by design. Do not interrupt it early.
-3. Every successful /solve call also triggers explainer.py's
-   gemini-3.6-flash call (separate quota bucket) -- if you start seeing
-   429s referencing gemini-3.6-flash instead of gemini-3.5-flash-lite,
-   that's the explanation layer's quota, not the parser's; the retry
-   logic below handles either.
+Real quota check (2026-09-07, Google AI Studio dashboard):
+  gemini-3.5-flash-lite (parser)   : RPM 15, RPD 500,  TPM 250K
+  gemini-3.1-flash-lite (fallback) : RPM 15, RPD 500,  TPM 250K
+  gemini-3.6-flash (explainer)     : RPM  5, RPD  20,  TPM 250K  <-- tight
+  gemini-3.8-flash (fallback)      : RPM  5, RPD  20,  TPM 250K  <-- tight
+
+This eval only checks operation/expression/parameters -- it never needed
+the explanation text. Previously every /solve call triggered the
+explainer too, so a 90-call run (30 queries x 3) could burn most or all
+of the explainer's 20-40/day combined budget just to test parsing. Since
+backend/main.py now accepts "skip_explanation": true, this script uses
+it, so this eval no longer touches the explainer's quota at all --
+leaving that budget free for the separate explanation-quality run
+(Tables 4.12/4.13) and the end-to-end latency run (Table 4.14), which
+DO need real explanations and should be run and budgeted separately
+(see eval_pipeline_latency.py).
+
+With the explainer out of the picture, the parser's own budget (RPM 15,
+RPD 500) comfortably covers all 90 calls; this script still throttles
+and retries on 429 as a safety net, not because it's expected to trigger.
+
+BEFORE RUNNING:
+- Confirm the deployed main.py accepts "skip_explanation" in the request
+  body (v1.5 or later). If it's an older deployment, this field is
+  silently ignored by FastAPI/Pydantic and every call will still invoke
+  the explainer -- check one response manually first
+  ("explanation" should be null in the JSON when skip_explanation=true).
 
 Usage:
     pip install requests --break-system-packages
@@ -41,11 +52,12 @@ SOLVE_ENDPOINT = "/solve"
 REQUEST_PAYLOAD_KEY = "query"
 N_RUNS = 3
 
-# Free tier is 15 req/min -> minimum ~4s spacing. Use 5s for margin,
-# since each /solve can itself trigger two model calls (parser + explainer).
-DELAY_BETWEEN_CALLS_S = 5.0
+# Parser quota is RPM 15 / RPD 500 -- 3s spacing keeps us at ~20/min,
+# a bit over 15 in theory but our 429 retry below absorbs any overshoot
+# without risking the tight explainer budget (which isn't touched here).
+DELAY_BETWEEN_CALLS_S = 3.0
 MAX_RETRIES_ON_429 = 4
-BASE_BACKOFF_S = 15.0  # doubles each retry: 15s, 30s, 60s, 120s
+BASE_BACKOFF_S = 15.0
 
 TEST_BANK = [
     ("Q01", "Simple", "Differentiate x cubed plus 3x squared plus 2x",
@@ -130,24 +142,22 @@ def normalize(s):
 
 
 def is_rate_limit_error(exc_or_payload):
-    """Detect a 429 whether it's an HTTP-level error or embedded in a 200 JSON body."""
     text = str(exc_or_payload)
     return "429" in text or "RESOURCE_EXHAUSTED" in text or "rate limit" in text.lower()
 
 
 def call_solve_with_retry(query):
-    """
-    Returns (data_dict_or_None, elapsed_seconds, error_message_or_None).
-    Retries on 429 (both HTTP-level and pipeline-caught quota errors
-    embedded in a 200 response) with exponential backoff.
-    """
     url = BASE_URL.rstrip("/") + SOLVE_ENDPOINT
     last_error = None
 
     for attempt in range(MAX_RETRIES_ON_429 + 1):
         t0 = time.perf_counter()
         try:
-            resp = requests.post(url, json={REQUEST_PAYLOAD_KEY: query}, timeout=90)
+            resp = requests.post(
+                url,
+                json={REQUEST_PAYLOAD_KEY: query, "skip_explanation": True},
+                timeout=90,
+            )
             elapsed = time.perf_counter() - t0
 
             if resp.status_code == 429:
@@ -162,8 +172,6 @@ def call_solve_with_retry(query):
             resp.raise_for_status()
             data = resp.json()
 
-            # The pipeline can also swallow a 429 internally and return
-            # success=False with the quota message in "error" at HTTP 200.
             if data.get("success") is False and is_rate_limit_error(data.get("error")):
                 last_error = data.get("error")
                 if attempt < MAX_RETRIES_ON_429:
@@ -239,6 +247,10 @@ def run_eval():
         valid_times = [t for t in parse_times if t is not None]
         mean_parse_time = round(sum(valid_times) / len(valid_times), 3) if valid_times else None
 
+        # Sanity check: explanation should be null since skip_explanation=True.
+        # If it's NOT null, the deployed main.py doesn't support the flag yet.
+        explanation_leaked = bool(first.get("explanation"))
+
         rows.append({
             "ID": qid,
             "Level": level,
@@ -254,14 +266,19 @@ def run_eval():
             "Parameters correct": parameters_correct,
             "Consistent (3 runs)": consistent,
             "Mean parse time (s)": mean_parse_time,
+            "skip_explanation honored": not explanation_leaked,
         })
 
-        # Write incrementally so a mid-run failure doesn't lose completed rows.
         fieldnames = list(rows[0].keys())
         with open("nlp_results.csv", "w", newline="") as f:
             writer = csv.DictWriter(f, fieldnames=fieldnames)
             writer.writeheader()
             writer.writerows(rows)
+
+    if any(not r["skip_explanation honored"] for r in rows):
+        print("\n*** WARNING: explanation text came back despite skip_explanation=True. ***")
+        print("*** The deployed main.py may be an older version without the flag -- ***")
+        print("*** this run likely still consumed explainer quota. Redeploy and rerun. ***\n")
 
     def pct(vals):
         vals = [v for v in vals if v is not None]
