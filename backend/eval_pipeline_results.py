@@ -34,7 +34,7 @@ If you use this:
      the report's own NOTE TO AUTHOR under Table 4.13 asks for -- it
      just usually assumes two humans, and here one "rater" is the LLM.
   3. Do not present the LLM judge as a second independent human rater.
-  4. The judge model (qwen/qwen3.6-plus-preview:free via OpenRouter) is
+  4. The judge model (nvidia/nemotron-3.5-lightning:free via OpenRouter) is
      free during a preview period; OpenRouter's own terms state prompts
      and completions may be collected to improve the model during this
      period. That's your queries and Studify's generated explanations,
@@ -66,14 +66,21 @@ Usage:
     pip install requests --break-system-packages
     export OPENROUTER_API_KEY=...   # only needed for LLM-as-judge scoring
                                      # free tier: sign up at openrouter.ai,
-                                     # judge model is qwen/qwen3.6-plus-preview:free
+                                     # judge model is nvidia/nemotron-3.5-lightning:free
     python eval_pipeline_results.py
 """
 
+import argparse
 import csv
 import os
 import time
 import requests
+
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass  # dotenv not installed -- fine if the key is exported in the shell instead
 
 BASE_URL = "https://studify.quikdb.net"
 SOLVE_ENDPOINT = "/solve"
@@ -241,7 +248,7 @@ def run_latency(results):
               f"max={max(totals):.3f}s share=100%")
 
 
-JUDGE_MODEL = "qwen/qwen3.6-plus-preview:free"
+JUDGE_MODEL = "nvidia/nemotron-3.5-lightning:free"
 JUDGE_MAX_RETRIES_ON_429 = 3
 JUDGE_BASE_BACKOFF_S = 10.0
 
@@ -249,7 +256,7 @@ JUDGE_BASE_BACKOFF_S = 10.0
 def score_explanation_with_llm_judge(query, operation, symbolic_result, explanation):
     """
     LLM-as-judge scoring against the Table 4.11/4.12 rubric, using
-    qwen/qwen3.6-plus-preview:free via OpenRouter as an INDEPENDENT judge
+    nvidia/nemotron-3.5-lightning:free via OpenRouter as an INDEPENDENT judge
     model (deliberately not Gemini, since Gemini generated the
     explanation being judged -- using the same model family to grade
     its own work would be a weaker, self-evaluation design).
@@ -258,7 +265,7 @@ def score_explanation_with_llm_judge(query, operation, symbolic_result, explanat
       - it can be rate limited under load (retried with backoff below)
       - "free" status is time-limited on OpenRouter's side; if this
         model stops being free or gets deprecated, check
-        https://openrouter.ai/qwen for a current free alternative and
+        https://openrouter.ai/nvidia for a current free alternative and
         update JUDGE_MODEL above -- don't silently fall back to a paid
         model without deciding that's what you want.
 
@@ -314,6 +321,17 @@ Respond with ONLY a JSON object, no other text, in exactly this shape:
                 continue
             raise RuntimeError(last_error)
 
+        if resp.status_code in (401, 403):
+            raise RuntimeError(
+                f"HTTP {resp.status_code} from OpenRouter -- this means the key "
+                f"itself was rejected, not a rate limit. OpenRouter's actual "
+                f"error message: {resp.text[:300]}. Common causes: "
+                f"OPENROUTER_API_KEY not set/exported in this shell (or sitting "
+                f"in a .env file the script isn't loading), the key was copied "
+                f"with extra whitespace/quotes, or the key was revoked. Verify "
+                f"at https://openrouter.ai/keys before rerunning."
+            )
+
         resp.raise_for_status()
         body = resp.json()
 
@@ -330,12 +348,58 @@ Respond with ONLY a JSON object, no other text, in exactly this shape:
     raise RuntimeError(last_error)
 
 
+def _preflight_check_openrouter_key():
+    """
+    One cheap call to catch a bad/missing key immediately, instead of
+    discovering it 30 identical failures later.
+    """
+    api_key = os.environ.get("OPENROUTER_API_KEY", "")
+
+    if not api_key.startswith("sk-or-"):
+        masked = f"{api_key[:12]}...{api_key[-4:]}" if len(api_key) > 16 else api_key
+        print(f"\n*** OPENROUTER_API_KEY does not look like a valid OpenRouter key ***")
+        print(f"Key as loaded: {masked}")
+        print("Real OpenRouter keys start with 'sk-or-v1-'. This one is missing "
+              "that prefix -- almost certainly copied starting partway through "
+              "the key (e.g. from 'v1-...' instead of the full 'sk-or-v1-...'). "
+              "Go back to https://openrouter.ai/keys and copy the ENTIRE key "
+              "string from the beginning.")
+        return False
+
+    resp = requests.post(
+        "https://openrouter.ai/api/v1/chat/completions",
+        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+        json={"model": JUDGE_MODEL, "messages": [{"role": "user", "content": "reply with OK"}]},
+        timeout=30,
+    )
+    if resp.status_code in (401, 403):
+        masked = f"{api_key[:8]}...{api_key[-4:]}" if api_key and len(api_key) > 12 else "(key looks empty or very short)"
+        print(f"\n*** OPENROUTER_API_KEY preflight check FAILED (HTTP {resp.status_code}) ***")
+        print(f"Key as loaded by this script: {masked}")
+        print(f"OpenRouter's error: {resp.text[:300]}")
+        print("Check: is the key actually exported in THIS shell (echo $OPENROUTER_API_KEY), "
+              "or sitting in a .env file? Is it copied without extra quotes/whitespace? "
+              "Is it still active at https://openrouter.ai/keys?")
+        return False
+    if resp.status_code >= 400:
+        print(f"\nPreflight check got HTTP {resp.status_code} (not an auth problem, "
+              f"something else): {resp.text[:300]}")
+        return False
+    print("OPENROUTER_API_KEY preflight check passed.")
+    return True
+
+
 def run_explanation_quality(results):
     """Tables 4.12/4.13: rubric scores per criterion and per operation."""
     if not os.environ.get("OPENROUTER_API_KEY"):
         print("\nOPENROUTER_API_KEY not set -- skipping explanation quality scoring "
               "(Tables 4.12/4.13). Set the key (free signup at openrouter.ai) and "
               "rerun, or collect human ratings instead using the rubric in Table 4.11.")
+        return []
+
+    if not _preflight_check_openrouter_key():
+        print("Aborting explanation quality scoring -- fix the key and rerun "
+              "with --stage quality (this makes no /solve calls, so it's free to retry).")
         return []
 
     scored = []
@@ -431,7 +495,7 @@ def answers_match(expected, got):
 
 def call_general_llm(query):
     """
-    Asks the free Qwen judge model to solve the problem directly, with
+    Asks the free nvidia judge model to solve the problem directly, with
     NO tools/code execution available (a plain chat completion call
     has none by default) -- this is the "general-purpose LLM, tool use
     disabled" comparison the report's methodology note calls for.
@@ -552,6 +616,33 @@ def run_table_4_17(test_bank_csv_path):
     return rows
 
 
+def load_results_from_csv(path="pipeline_results.csv"):
+    """
+    Loads a previously-written pipeline_results.csv (from an earlier
+    collect_pipeline_runs() run) so explanation-quality scoring can be
+    (re)done WITHOUT calling /solve again. CSV values are all strings,
+    so "success" is converted back to a real bool -- otherwise the
+    string "False" is truthy in Python and every row would look
+    successful to run_explanation_quality()'s checks.
+    """
+    if not os.path.exists(path):
+        raise FileNotFoundError(
+            f"{path} not found. Run with --stage collect first (or --stage all) "
+            f"to generate it before scoring."
+        )
+    with open(path, newline="") as f:
+        rows = list(csv.DictReader(f))
+    for r in rows:
+        r["success"] = (r.get("success") == "True")
+    print(f"Loaded {len(rows)} previously-collected results from {path} "
+          f"(no new /solve calls made).")
+    return rows
+
+
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+DEFAULT_TEST_BANK_PATH = os.path.join(SCRIPT_DIR, "test_bank_4_6.csv")
+
+
 def write_csv(results, scored, path="pipeline_results.csv"):
     scored_by_id = {row["ID"]: row for row in scored}
     fieldnames = list(results[0].keys()) + list(RUBRIC_CRITERIA.keys()) + ["overall"]
@@ -569,8 +660,56 @@ def write_csv(results, scored, path="pipeline_results.csv"):
 
 
 if __name__ == "__main__":
-    results = collect_pipeline_runs()
-    run_latency(results)
-    scored = run_explanation_quality(results)
-    write_csv(results, scored)
-    run_table_4_17(test_bank_csv_path="test_bank_4_6.csv")
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--stage",
+        choices=["all", "collect", "quality", "table417"],
+        default="all",
+        help=(
+            "all: run everything from scratch (original behavior, ~30 fresh "
+            "/solve calls plus quality scoring plus Table 4.17). "
+            "collect: only Table 4.14 latency + write pipeline_results.csv "
+            "(no quality scoring). "
+            "quality: (re)score explanation quality from an EXISTING "
+            "pipeline_results.csv -- makes NO new /solve calls, only "
+            "OpenRouter calls. Use this if you already have real "
+            "pipeline_results.csv from a prior run and just need Tables "
+            "4.12/4.13. "
+            "table417: run only the Table 4.17 comparison against the "
+            "38-item bank -- does not touch the 30-query interpretation "
+            "bank or re-collect latency data at all."
+        ),
+    )
+    parser.add_argument(
+        "--results-csv", default="pipeline_results.csv",
+        help="Path to read/write pipeline_results.csv (default: ./pipeline_results.csv)",
+    )
+    parser.add_argument(
+        "--test-bank-csv", default=DEFAULT_TEST_BANK_PATH,
+        help=f"Path to the 38-item test bank CSV (default: {DEFAULT_TEST_BANK_PATH}, "
+             f"i.e. next to this script)",
+    )
+    args = parser.parse_args()
+
+    if args.stage == "all":
+        results = collect_pipeline_runs()
+        run_latency(results)
+        scored = run_explanation_quality(results)
+        write_csv(results, scored, path=args.results_csv)
+        run_table_4_17(test_bank_csv_path=args.test_bank_csv)
+
+    elif args.stage == "collect":
+        results = collect_pipeline_runs()
+        run_latency(results)
+        write_csv(results, scored=[], path=args.results_csv)
+        print("\nRan --stage collect only. Rerun with --stage quality once "
+              "OPENROUTER_API_KEY is set, to score these same explanations "
+              "without spending any more Studify/explainer quota.")
+
+    elif args.stage == "quality":
+        results = load_results_from_csv(args.results_csv)
+        scored = run_explanation_quality(results)
+        write_csv(results, scored, path=args.results_csv)
+
+    elif args.stage == "table417":
+        run_table_4_17(test_bank_csv_path=args.test_bank_csv)
