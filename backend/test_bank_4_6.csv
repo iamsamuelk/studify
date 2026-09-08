@@ -1,0 +1,39 @@
+id,operation,level,input_expression,reference_answer,query
+D1,derivative,Simple,x**3 + 3*x**2 + 2*x,3*x**2 + 6*x + 2,Differentiate x cubed plus 3x squared plus 2x
+D2,derivative,Simple,sin(x),cos(x),What is the derivative of sin(x)?
+D3,derivative,Intermediate,x**2*exp(x),x**2*exp(x) + 2*x*exp(x),Differentiate x squared times e to the x
+D4,derivative,Intermediate,sin(x**2),2*x*cos(x**2),Differentiate sin(x squared)
+D5,derivative,Multi-step,log(x)/x,(1 - log(x))/x**2,Differentiate ln(x) divided by x
+D6,derivative,Multi-step,exp(-2*t)*cos(3*t),-2*exp(-2*t)*cos(3*t) - 3*exp(-2*t)*sin(3*t),Differentiate e^(-2t) cos(3t) with respect to t
+I1,indefinite_integral,Simple,2*x,x**2,Integrate 2x
+I2,indefinite_integral,Simple,cos(x),sin(x),Find the integral of cos x dx
+I3,indefinite_integral,Intermediate,x*exp(x),(x - 1)*exp(x),Integrate x e^x with respect to x
+I4,indefinite_integral,Multi-step,1/(x**2 - 1),log(x - 1)/2 - log(x + 1)/2,Integrate 1/(x^2 - 1) using partial fractions
+J1,definite_integral,Simple,x**2; 0 to 3,9,Integrate x squared from 0 to 3
+J2,definite_integral,Simple,sin(x); 0 to pi,2,Integrate sin(x) from 0 to pi
+J3,definite_integral,Intermediate,exp(-x); 0 to oo,1,Evaluate the integral of e^(-x) between 0 and infinity
+J4,definite_integral,Multi-step,x*sin(x); 0 to pi,pi,Integrate x sin x from 0 to pi
+L1,limit,Simple,sin(x)/x; point 0,1,Find the limit of sin(x)/x as x approaches 0
+L2,limit,Intermediate,(1 + 1/x)**x; point oo,E,Find the limit of (1 + 1/x)^x as x tends to infinity
+L3,limit,Intermediate,(x**2 - 9)/(x - 3); point 3,6,Find the limit of (x^2 - 9)/(x - 3) as x approaches 3
+L4,limit,Multi-step,(1 - cos(x))/x**2; point 0,1/2,Find the limit of (1 - cos(x))/x^2 as x approaches 0
+S1,solve,Simple,x**2 - 9,[-3; 3],Solve x squared minus 9 equals zero
+S2,solve,Intermediate,x**2 + 4*x + 4,[-2],Find the roots of x^2 + 4x + 4
+S3,solve,Intermediate,x**2 + 1,[-I; I],Solve x squared plus 1 equals zero
+S4,solve,Multi-step,x**3 - 6*x**2 + 11*x - 6,[1; 2; 3],Solve the cubic x^3 - 6x^2 + 11x - 6 = 0
+P1,simplify,Simple,(x**2 - 1)/(x - 1),x + 1,Simplify (x^2 - 1)/(x - 1)
+P2,simplify,Intermediate,sin(x)**2 + cos(x)**2,1,Simplify sin squared x plus cos squared x
+P3,simplify,Multi-step,(x**3 - 8)/(x - 2),x**2 + 2*x + 4,Simplify (x^3 - 8)/(x - 2)
+T1,taylor,Simple,exp(x); point 0,1 + x + x**2/2 + x**3/6 + O(x**4),Taylor series of e^x about 0 up to order 4
+T2,taylor,Intermediate,sin(x); point 0,x - x**3/6 + x**5/120 + O(x**6),Taylor series of sin(x) about 0 up to order 6
+T3,taylor,Multi-step,log(1 + x); point 0,x - x**2/2 + x**3/3 - x**4/4 + O(x**5),Expand ln(1+x) as a Taylor series about 0 up to order 5
+F1,laplace,Simple,1,1/s,Laplace transform of 1
+F2,laplace,Simple,exp(-2*t),1/(s + 2),Laplace transform of e to the power negative 2t
+F3,laplace,Intermediate,sin(t),1/(s**2 + 1),Find the Laplace transform of sin(t)
+F4,laplace,Intermediate,t**2,2/s**3,Find the Laplace transform of t squared
+F5,laplace,Multi-step,t*exp(-t),1/(s + 1)**2,Laplace transform of t e^(-t)
+F6,laplace,Multi-step,exp(-2*t)*cos(3*t),(s + 2)/((s + 2)**2 + 9),Laplace transform of e^(-2t) cos(3t)
+G1,inverse_laplace,Simple,1/s,Heaviside(t),Inverse Laplace transform of 1/s
+G2,inverse_laplace,Intermediate,1/(s + 2),exp(-2*t)*Heaviside(t),Inverse Laplace of 1 over s plus 2
+G3,inverse_laplace,Intermediate,1/(s**2 + 1),sin(t)*Heaviside(t),Find the inverse Laplace transform of 1/(s^2 + 1)
+G4,inverse_laplace,Multi-step,1/(s**2 + 3*s + 2),(exp(-t) - exp(-2*t))*Heaviside(t),Find the inverse Laplace transform of 1/(s^2 + 3s + 2)

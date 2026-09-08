@@ -6,8 +6,8 @@ from dotenv import load_dotenv
 load_dotenv()
 
 client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
-PRIMARY_MODEL = "gemini-3.6-flash"
-FALLBACK_MODEL = "gemini-3.8-flash"
+PRIMARY_MODEL = "gemini-3.8-flash"
+FALLBACK_MODEL = "gemini-3.7-flash"
 
 
 def _is_quota_error(exc) -> bool:
@@ -36,8 +36,6 @@ def _generate_with_fallback(contents, config):
             model=FALLBACK_MODEL, contents=contents, config=config,
         )
         return response, FALLBACK_MODEL
-
-
 SYSTEM_PROMPT = """
 You are Studify, a patient and thorough engineering mathematics tutor for
 undergraduate students in Nigeria and beyond.
@@ -92,6 +90,7 @@ Please explain step-by-step how this result was obtained.
             config=types.GenerateContentConfig(
                 system_instruction=SYSTEM_PROMPT,
                 max_output_tokens=4096,
+                automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
             ),
         )
 

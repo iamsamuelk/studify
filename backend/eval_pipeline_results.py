@@ -49,7 +49,7 @@ suggested separately.
 Quota budget (checked against your live dashboard, 2026-09-07):
 =====================================================================
   gemini-3.5-flash-lite / 3.1-flash-lite (parser)    : RPM 15, RPD 500
-  gemini-3.6-flash / 3.8-flash (explainer, fallback) : RPM  5, RPD  20 each
+  gemini-3.8-flash / 3.7-flash (explainer, fallback) : RPM  5, RPD  20 each
 
 Table 4.14 needs 30 full-pipeline calls (one per query, no repeats --
 the table's Mean/Min/Max are computed ACROSS the 30 different queries,
@@ -130,7 +130,7 @@ def is_rate_limit_error(exc_or_payload):
     return "429" in text or "RESOURCE_EXHAUSTED" in text or "rate limit" in text.lower()
 
 
-def call_solve(query):
+def call_solve(query, skip_explanation=False):
     """
     POSTs to /solve with retry+backoff on 429, whether it surfaces as an
     HTTP-level error or as success=False with a quota message embedded
@@ -145,7 +145,7 @@ def call_solve(query):
     for attempt in range(MAX_RETRIES_ON_429 + 1):
         t0 = time.perf_counter()
         try:
-            resp = requests.post(url, json={"query": query, "skip_explanation": False}, timeout=90)
+            resp = requests.post(url, json={"query": query, "skip_explanation": skip_explanation}, timeout=90)
             elapsed = time.perf_counter() - t0
 
             if resp.status_code == 429:
@@ -375,24 +375,181 @@ def run_explanation_quality(results):
     return scored
 
 
-def run_table_4_17(test_bank_38_path=None):
+def _normalize_answer(s):
+    if s is None:
+        return None
+    return str(s).replace(" ", "").lower()
+
+
+def answers_match(expected, got):
     """
-    Table 4.17 needs the ACTUAL 38-item symbolic-engine test bank from
-    Tables 4.6-4.8, which this script does not have. Provide it as a CSV
-    with columns: id, level, query, expected_final_answer, then pass its
-    path here. This function deliberately does NOT fall back to the
-    30-item interpretation bank -- reusing or padding that bank would
-    misrepresent the 38-problem test set referenced in the report.
+    Compares a reference answer (from Table 4.6) against a system's
+    answer. Tries increasingly loose methods and is explicit about
+    uncertainty rather than guessing:
+
+      1. Exact normalized string match.
+      2. List-type answers (solve results like "[-3, 3]"): parse as a
+         set of sympified elements, compare set equality (order-
+         independent).
+      3. Scalar symbolic expressions: sympify both sides and check the
+         simplified difference is zero.
+      4. Anything involving a Taylor series truncation (contains "O(")
+         or that fails to parse: NOT auto-verdicted. Returns
+         "NEEDS_MANUAL_CHECK" -- sympy's Order arithmetic and small
+         formatting differences make automated truncated-series
+         comparison unreliable, and silently guessing here would put a
+         fabricated correctness verdict into Table 4.17. Report these
+         rows as requiring a human look rather than pretending the
+         script verified them.
+
+    Returns True, False, or the string "NEEDS_MANUAL_CHECK".
     """
-    if not test_bank_38_path or not os.path.exists(test_bank_38_path):
-        print("\nTable 4.17 skipped: no 38-item test bank provided. "
-              "Export the test bank used in Tables 4.6-4.8 to a CSV "
-              "(id, level, query, expected_final_answer) and pass its "
-              "path to run_table_4_17().")
-        return
-    # Implementation intentionally left for once the real bank is supplied --
-    # ask before building the comparison logic against ambiguous ground truth.
-    raise NotImplementedError("Real 38-item test bank found -- ask for comparison logic to be completed.")
+    import sympy as sp
+
+    if expected is None or got is None:
+        return False
+
+    if _normalize_answer(expected) == _normalize_answer(got):
+        return True
+
+    if "O(" in str(expected) or "O(" in str(got):
+        return "NEEDS_MANUAL_CHECK"
+
+    try:
+        if str(expected).strip().startswith("[") and str(got).strip().startswith("["):
+            def parse_list(s):
+                inner = s.strip().strip("[]")
+                parts = [p.strip() for p in inner.replace(";", ",").split(",") if p.strip()]
+                return set(sp.simplify(sp.sympify(p)) for p in parts)
+            return parse_list(expected) == parse_list(got)
+
+        diff = sp.simplify(sp.sympify(expected) - sp.sympify(got))
+        return diff == 0
+    except Exception:
+        return "NEEDS_MANUAL_CHECK"
+
+
+def call_general_llm(query):
+    """
+    Asks the free Qwen judge model to solve the problem directly, with
+    NO tools/code execution available (a plain chat completion call
+    has none by default) -- this is the "general-purpose LLM, tool use
+    disabled" comparison the report's methodology note calls for.
+    """
+    api_key = os.environ.get("OPENROUTER_API_KEY")
+    if not api_key:
+        return None
+
+    prompt = (
+        f"Solve this problem: {query}\n\n"
+        "Give your reasoning briefly, then end with a final line in "
+        "EXACTLY this format (no other text after it):\n"
+        "FINAL ANSWER: <answer in plain math notation, e.g. 3*x**2 + 2 "
+        "or [-3, 3] or 1/(s + 2)>"
+    )
+    resp = requests.post(
+        "https://openrouter.ai/api/v1/chat/completions",
+        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+        json={"model": JUDGE_MODEL, "messages": [{"role": "user", "content": prompt}]},
+        timeout=60,
+    )
+    resp.raise_for_status()
+    text = resp.json()["choices"][0]["message"]["content"]
+    if "FINAL ANSWER:" in text:
+        return text.split("FINAL ANSWER:")[-1].strip()
+    return text.strip()  # fallback: couldn't find the marker, keep raw text for manual review
+
+
+def run_table_4_17(test_bank_csv_path):
+    """
+    Table 4.17: final-answer accuracy of Studify vs a general-purpose
+    LLM (tool use disabled) on the real 38-item test bank from Tables
+    4.6-4.8. Requires OPENROUTER_API_KEY for the general-purpose LLM
+    side; Studify's own answers only need the live /solve endpoint.
+
+    Runs the general-purpose LLM TWICE per problem to populate the
+    "LLM answers that changed on repetition" column.
+    """
+    if not test_bank_csv_path or not os.path.exists(test_bank_csv_path):
+        print("\nTable 4.17 skipped: no 38-item test bank CSV found at the given path.")
+        return []
+
+    if not os.environ.get("OPENROUTER_API_KEY"):
+        print("\nTable 4.17 skipped: OPENROUTER_API_KEY not set (needed for the "
+              "general-purpose LLM side of the comparison).")
+        return []
+
+    with open(test_bank_csv_path) as f:
+        bank = list(csv.DictReader(f))
+
+    rows = []
+    for idx, item in enumerate(bank, start=1):
+        qid, level, query, reference = item["id"], item["level"], item["query"], item["reference_answer"]
+        print(f"[{qid}] ({idx}/{len(bank)}) {query}")
+
+        # Studify's final answer only (skip_explanation=True conserves the
+        # tight explainer quota, which this table doesn't need at all).
+        studify_data, _, studify_err = call_solve(query, skip_explanation=True)
+        if studify_err:
+            print(f"  Studify call failed: {studify_err[:150]}")
+
+        studify_answer = studify_data.get("symbolic_result")
+        studify_correct = answers_match(reference, studify_answer) if studify_data.get("success") else False
+
+        # General-purpose LLM, run twice
+        llm_run1 = llm_run2 = None
+        try:
+            llm_run1 = call_general_llm(query)
+            time.sleep(3)
+            llm_run2 = call_general_llm(query)
+        except Exception as e:
+            print(f"  general-LLM call failed: {e}")
+
+        llm_correct = answers_match(reference, llm_run1) if llm_run1 else False
+        changed_on_repetition = (
+            _normalize_answer(llm_run1) != _normalize_answer(llm_run2)
+            if llm_run1 and llm_run2 else None
+        )
+
+        rows.append({
+            "ID": qid,
+            "Level": level,
+            "Query": query,
+            "Reference answer": reference,
+            "Studify answer": studify_answer,
+            "Studify correct": studify_correct,
+            "LLM answer (run 1)": llm_run1,
+            "LLM answer (run 2)": llm_run2,
+            "LLM correct": llm_correct,
+            "LLM changed on repetition": changed_on_repetition,
+        })
+        time.sleep(3)
+
+    with open("table_4_17_results.csv", "w", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
+        writer.writeheader()
+        writer.writerows(rows)
+
+    manual_check_needed = [r for r in rows if r["Studify correct"] == "NEEDS_MANUAL_CHECK"
+                           or r["LLM correct"] == "NEEDS_MANUAL_CHECK"]
+    if manual_check_needed:
+        print(f"\n*** {len(manual_check_needed)} rows need manual verification "
+              f"(automated symbolic comparison was not confident) -- see "
+              f"table_4_17_results.csv, IDs: {[r['ID'] for r in manual_check_needed]} ***")
+
+    print("\n=== TABLE 4.17: FINAL-ANSWER ACCURACY ===")
+    for level in ["Simple", "Intermediate", "Multi-step", "All"]:
+        subset = rows if level == "All" else [r for r in rows if r["Level"] == level]
+        if not subset:
+            continue
+        studify_ok = sum(1 for r in subset if r["Studify correct"] is True)
+        llm_ok = sum(1 for r in subset if r["LLM correct"] is True)
+        changed = sum(1 for r in subset if r["LLM changed on repetition"] is True)
+        print(f"{level}: n={len(subset)} Studify correct={studify_ok} "
+              f"LLM correct={llm_ok} LLM changed on repetition={changed}")
+
+    print("\nWrote table_4_17_results.csv")
+    return rows
 
 
 def write_csv(results, scored, path="pipeline_results.csv"):
@@ -416,4 +573,4 @@ if __name__ == "__main__":
     run_latency(results)
     scored = run_explanation_quality(results)
     write_csv(results, scored)
-    run_table_4_17(test_bank_38_path=None)  # pass the real 38-item CSV path once available
+    run_table_4_17(test_bank_csv_path="test_bank_4_6.csv")
