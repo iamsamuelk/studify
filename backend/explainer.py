@@ -15,13 +15,26 @@ def _is_quota_error(exc) -> bool:
     return "429" in text or "RESOURCE_EXHAUSTED" in text or "quota" in text.lower()
 
 
+def _is_retryable_error(exc) -> bool:
+    """
+    Broader than _is_quota_error: also covers transient server-side
+    overload (503 UNAVAILABLE), which Gemini returns when a model is
+    getting hammered by demand -- unrelated to OUR quota, but just as
+    fixable by falling back to the secondary model.
+    """
+    text = str(exc)
+    if _is_quota_error(exc):
+        return True
+    return "503" in text or "UNAVAILABLE" in text or "overloaded" in text.lower()
+
+
 def _generate_with_fallback(contents, config):
     """
     Tries PRIMARY_MODEL first on every call. If that call hits a quota/
-    rate-limit error, retries the SAME call once on FALLBACK_MODEL.
-    The next call always starts again on PRIMARY_MODEL, so once its
-    quota window resets the pipeline automatically switches back —
-    no persistent "stuck on fallback" state is kept.
+    rate-limit error OR a transient server overload (503), retries the
+    SAME call once on FALLBACK_MODEL. The next call always starts again
+    on PRIMARY_MODEL, so once conditions clear the pipeline automatically
+    switches back -- no persistent "stuck on fallback" state is kept.
     """
     try:
         response = client.models.generate_content(
@@ -29,9 +42,9 @@ def _generate_with_fallback(contents, config):
         )
         return response, PRIMARY_MODEL
     except Exception as e:
-        if not _is_quota_error(e):
+        if not _is_retryable_error(e):
             raise
-        print(f"[explainer] {PRIMARY_MODEL} quota hit, falling back to {FALLBACK_MODEL}")
+        print(f"[explainer] {PRIMARY_MODEL} unavailable/quota hit, falling back to {FALLBACK_MODEL}")
         response = client.models.generate_content(
             model=FALLBACK_MODEL, contents=contents, config=config,
         )

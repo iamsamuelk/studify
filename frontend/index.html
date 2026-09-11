@@ -132,6 +132,16 @@
         <!-- ── Input bar ── -->
         <div class="input-bar">
             <div class="input-wrapper">
+                <button class="camera-btn" id="camera-btn" onclick="triggerImageUpload()" title="Snap or upload a question">
+                    📷
+                </button>
+                <input
+                    type="file"
+                    id="image-input"
+                    accept="image/jpeg,image/png,image/webp"
+                    hidden
+                    onchange="handleImageSelected(event)"
+                />
                 <textarea
                     id="query-input"
                     placeholder="Ask a mathematics question… (Enter to send)"
@@ -147,6 +157,29 @@
             </div>
         </div>
 
+    </div>
+</div>
+
+<!-- Image confirm modal -->
+<div class="image-modal hidden" id="image-modal">
+    <div class="image-modal-card">
+        <div class="image-modal-header">
+            <span>Confirm question</span>
+            <button class="icon-btn" onclick="closeImageModal()" title="Cancel">✕</button>
+        </div>
+        <img id="image-modal-preview" class="image-modal-preview" alt="Captured question" />
+        <div class="image-modal-label" id="image-modal-status">Reading image…</div>
+        <textarea
+            id="image-modal-text"
+            class="image-modal-text"
+            rows="2"
+            placeholder="Extracted question will appear here — edit if needed"
+        ></textarea>
+        <div class="image-modal-actions">
+            <button class="btn-secondary" onclick="closeImageModal()">Cancel</button>
+            <button class="btn-secondary" onclick="retakeImage()">Retake</button>
+            <button class="btn-primary" id="image-modal-solve" onclick="confirmImageSolve()" disabled>Solve</button>
+        </div>
     </div>
 </div>
 

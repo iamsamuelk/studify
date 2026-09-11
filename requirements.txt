@@ -1,10 +1,9 @@
 aiofiles
 google-genai
 fastapi
-langchain
-langchain-core
 pydantic
 python-dotenv
+python-multipart
 supabase
 sympy
 uvicorn

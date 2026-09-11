@@ -237,6 +237,82 @@ async function loadHistory() {
     } catch (_) {}
 }
 
+// ── Image capture / upload ──────────────────────────────────────────────────
+
+let _pendingImageFile = null;
+
+function triggerImageUpload() {
+    $("image-input").value = "";
+    $("image-input").click();
+}
+
+function handleImageSelected(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    _pendingImageFile = file;
+
+    const preview = $("image-modal-preview");
+    preview.src = URL.createObjectURL(file);
+
+    $("image-modal-status").textContent = "Reading image…";
+    $("image-modal-text").value = "";
+    $("image-modal-solve").disabled = true;
+    $("image-modal").classList.remove("hidden");
+
+    extractFromImage(file);
+}
+
+function closeImageModal() {
+    $("image-modal").classList.add("hidden");
+    _pendingImageFile = null;
+}
+
+function retakeImage() {
+    $("image-modal").classList.add("hidden");
+    _pendingImageFile = null;
+    // Reopen the camera/file picker right away instead of leaving the
+    // user back at a closed modal with nothing to do next.
+    triggerImageUpload();
+}
+
+async function extractFromImage(file) {
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("skip_explanation", "true");
+    // ^ extraction-only pass: we just want extracted_query back for the
+    // user to confirm/edit. The real explainer call happens on Solve,
+    // via the normal /solve endpoint, so explainer quota isn't spent
+    // twice per image.
+
+    try {
+        const res = await fetch(`${API}/solve-image`, {
+            method: "POST",
+            body: formData
+        });
+        const data = await res.json();
+
+        if (data.extracted_query) {
+            $("image-modal-text").value = data.extracted_query;
+            $("image-modal-status").textContent = "Here's what I read — edit if needed:";
+            $("image-modal-solve").disabled = false;
+        } else {
+            $("image-modal-status").textContent = data.error || "Couldn't read a math problem from this image.";
+        }
+    } catch (err) {
+        $("image-modal-status").textContent = "Cannot reach backend. Please try again.";
+    }
+}
+
+function confirmImageSolve() {
+    const text = $("image-modal-text").value.trim();
+    if (!text) return;
+
+    closeImageModal();
+    $("query-input").value = text;
+    solveQuery();
+}
+
 // ── Keyboard: Enter to send ───────────────────────────────────────────────────
 
 $("query-input").addEventListener("keydown", e => {

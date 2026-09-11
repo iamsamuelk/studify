@@ -1,13 +1,20 @@
 from supabase import create_client
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from backend.pipeline import run_pipeline
+from backend.vision_parser import extract_math_from_image
 import os
 import sys
+import time
 sys.path.append(os.path.dirname(__file__))
+
+# ── Image upload constraints ────────────────────────────────────────────────
+
+MAX_IMAGE_BYTES = 8 * 1024 * 1024  # 8 MB
+ALLOWED_IMAGE_MIME_TYPES = {"image/jpeg", "image/png", "image/webp"}
 
 
 # ── Supabase ─────────────────────────────────────────────────────────────────
@@ -80,6 +87,14 @@ class QueryResponse(BaseModel):
     explanation_time_s: float | None = None
 
 
+class ImageQueryResponse(QueryResponse):
+    extracted_query: str | None = None
+    # ^ The plain-text query the vision layer read off the image, shown
+    # back to the user for confirmation/editing before it's treated as
+    # ground truth downstream.
+    vision_time_s: float | None = None
+
+
 # ── Routes ───────────────────────────────────────────────────────────────────
 
 @app.get("/health")
@@ -119,6 +134,73 @@ def solve(request: QueryRequest):
         interpretation_time_s=result.get("interpretation_time_s"),
         symbolic_time_s=result.get("symbolic_time_s"),
         explanation_time_s=result.get("explanation_time_s"),
+    )
+
+
+@app.post("/solve-image", response_model=ImageQueryResponse)
+async def solve_image(
+    file: UploadFile = File(...),
+    skip_explanation: bool = Form(False),
+):
+    if file.content_type not in ALLOWED_IMAGE_MIME_TYPES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported image type '{file.content_type}'. "
+                   f"Use JPEG, PNG, or WEBP.",
+        )
+
+    image_bytes = await file.read()
+
+    if not image_bytes:
+        raise HTTPException(status_code=400, detail="Uploaded image is empty.")
+    if len(image_bytes) > MAX_IMAGE_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail=f"Image exceeds {MAX_IMAGE_BYTES // (1024 * 1024)}MB limit.",
+        )
+
+    t0 = time.perf_counter()
+    vision_result = extract_math_from_image(image_bytes, mime_type=file.content_type)
+    vision_time_s = time.perf_counter() - t0
+
+    if not vision_result["success"]:
+        return ImageQueryResponse(
+            success=False,
+            query="",
+            extracted_query=None,
+            error=vision_result["error"],
+            vision_time_s=vision_time_s,
+        )
+
+    extracted_query = vision_result["extracted_query"]
+
+    # Reuse the existing text pipeline unchanged -- vision is purely an
+    # additional entry point feeding the same S(I) = G(I, T(E)) pipeline.
+    result = run_pipeline(extracted_query, skip_explanation=skip_explanation)
+
+    if not skip_explanation:
+        log_query(extracted_query, result)
+
+    parsed = result.get("parsed") or {}
+    return ImageQueryResponse(
+        success=result["success"],
+        query=result["query"],
+        extracted_query=extracted_query,
+        operation=parsed.get("operation"),
+        expression=parsed.get("expression"),
+        variable=parsed.get("variable"),
+        lower=parsed.get("lower"),
+        upper=parsed.get("upper"),
+        point=parsed.get("point"),
+        order=int(parsed["order"]) if parsed.get("order") not in (None, "") else None,
+        symbolic_result=result.get("symbolic_result"),
+        symbolic_result_latex=result.get("symbolic_result_latex"),
+        explanation=result.get("explanation"),
+        error=result.get("error"),
+        interpretation_time_s=result.get("interpretation_time_s"),
+        symbolic_time_s=result.get("symbolic_time_s"),
+        explanation_time_s=result.get("explanation_time_s"),
+        vision_time_s=vision_time_s,
     )
 
 
